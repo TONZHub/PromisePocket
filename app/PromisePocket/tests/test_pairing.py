@@ -26,6 +26,19 @@ class PairingTests(unittest.TestCase):
             store.claim(source_actor_id="other-alexa", code="482731", now=now)
         )
 
+    def test_unlink_restores_source_actor_identity(self):
+        store = InMemoryPairingStore()
+        now = datetime(2026, 8, 31, 6, 0, tzinfo=timezone.utc)
+
+        with patch("promise_pocket.pairing.secrets.randbelow", return_value=382731):
+            pairing = store.create(target_actor_id="demo-actor", now=now)
+
+        store.claim(source_actor_id="alexa-source", code=pairing.code, now=now)
+        self.assertEqual("demo-actor", store.resolve("alexa-source"))
+        self.assertTrue(store.unlink("alexa-source"))
+        self.assertEqual("alexa-source", store.resolve("alexa-source"))
+        self.assertFalse(store.unlink("alexa-source"))
+
     def test_expired_code_cannot_be_claimed(self):
         store = InMemoryPairingStore()
         now = datetime(2026, 8, 31, 6, 0, tzinfo=timezone.utc)
