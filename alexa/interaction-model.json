@@ -120,6 +120,7 @@
         {"name": "AMAZON.NoIntent", "samples": []},
         {"name": "AMAZON.CancelIntent", "samples": []},
         {"name": "AMAZON.HelpIntent", "samples": []},
+        {"name": "AMAZON.RepeatIntent", "samples": []},
         {"name": "AMAZON.StopIntent", "samples": []},
         {"name": "AMAZON.FallbackIntent", "samples": []}
       ],
