@@ -262,6 +262,12 @@ def invoke(payload: dict[str, Any], context: Any | None = None) -> dict[str, Any
             "linked": resolved_actor_id != source_actor_id,
         }
 
+    if operation == "pair_unlink":
+        return {
+            "operation": operation,
+            "unlinked": pairing_store.unlink(source_actor_id),
+        }
+
     # Pairing is deliberately resolved inside the IAM-authorized runtime. Alexa
     # only supplies its opaque, pseudonymous actor id; linked surfaces then land
     # in the same ledger without giving the Alexa Lambda direct DynamoDB access.
@@ -319,7 +325,7 @@ def invoke(payload: dict[str, Any], context: Any | None = None) -> dict[str, Any
     if operation != "capture":
         raise ValueError(
             "operation must be capture, clarify, review, pair_create, pair_claim, "
-            "pair_status, or a supported v2 operation"
+            "pair_status, pair_unlink, or a supported v2 operation"
         )
 
     prompt = payload.get("prompt")
