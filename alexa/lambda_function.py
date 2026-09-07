@@ -22,6 +22,7 @@ _agentcore = None
 
 PENDING_REVIEW_ID = "pendingV2CommitmentId"
 PENDING_REVIEW_KIND = "pendingV2ReviewKind"
+LAST_SPEECH_KEY = "lastSpeech"
 REVIEW_CONFIRM_CANDIDATE = "confirm_candidate"
 REVIEW_CONFIRM_LIKELY_DONE = "confirm_likely_done"
 REVIEW_RESOLVE_OVERDUE = "resolve_overdue"
@@ -54,10 +55,13 @@ def _speech(
         response["reprompt"] = {
             "outputSpeech": {"type": "PlainText", "text": reprompt}
         }
-    payload = {"version": "1.0", "response": response}
-    if session_attributes:
-        payload["sessionAttributes"] = session_attributes
-    return payload
+    attributes = dict(session_attributes or {})
+    attributes[LAST_SPEECH_KEY] = text
+    return {
+        "version": "1.0",
+        "response": response,
+        "sessionAttributes": attributes,
+    }
 
 
 def _first_turn(event: dict[str, Any], text: str) -> str:
@@ -126,6 +130,79 @@ def _invoke(event: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     if response.get("statusCode") != 200:
         raise RuntimeError(f"AgentCore returned {response.get('statusCode')}")
     return _read_runtime_response(response)
+
+
+def _pair_status(event: dict[str, Any]) -> bool | None:
+    """Return pairing state without making skill launch depend on runtime health."""
+    try:
+        result = _invoke(event, {"operation": "pair_status"})
+    except Exception:
+        LOGGER.exception("Could not read Alexa pairing status")
+        return None
+    return result.get("linked") is True
+
+
+def _launch(event: dict[str, Any]):
+    paired = _pair_status(event)
+    if paired is False:
+        text = (
+            "Receipts is listening. To get started, visit receipts dash app dot lol "
+            "and create a linking code. Then say, link code, followed by the six digits."
+        )
+        return _speech(
+            text,
+            end_session=False,
+            reprompt="Visit receipts dash app dot lol, create a linking code, then say link code followed by the six digits.",
+        )
+    return _speech(
+        "Receipts is listening. What should I hold onto?",
+        end_session=False,
+        reprompt="Tell me a promise or task to remember.",
+    )
+
+
+def _help(event: dict[str, Any]):
+    session_attributes = dict(event.get("session", {}).get("attributes", {}) or {})
+    paired = _pair_status(event)
+    if paired is False:
+        text = (
+            "To get started, visit receipts dash app dot lol and create a linking code. "
+            "Then say, link code, followed by the six digits. You can say, repeat that, "
+            "if you need me to say it again."
+        )
+        return _speech(
+            _first_turn(event, text),
+            end_session=False,
+            reprompt="Visit receipts dash app dot lol, create a linking code, then say link code followed by the six digits.",
+            session_attributes=session_attributes,
+        )
+    return _speech(
+        _first_turn(
+            event,
+            "Try saying, review my receipts, or, I promised to call Mom tomorrow at noon. You can also say, repeat that.",
+        ),
+        end_session=False,
+        reprompt="What should I remember?",
+        session_attributes=session_attributes,
+    )
+
+
+def _repeat(event: dict[str, Any]):
+    session_attributes = dict(event.get("session", {}).get("attributes", {}) or {})
+    previous = session_attributes.get(LAST_SPEECH_KEY)
+    if isinstance(previous, str) and previous.strip():
+        return _speech(
+            previous,
+            end_session=False,
+            reprompt=previous,
+            session_attributes=session_attributes,
+        )
+    return _speech(
+        "I don't have anything to repeat yet.",
+        end_session=False,
+        reprompt="What should I remember?",
+        session_attributes=session_attributes,
+    )
 
 
 def _slot_value(intent: dict[str, Any], name: str) -> str | None:
@@ -373,11 +450,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             # Multicast events do not require retaining Alexa's raw user ID.
             return {"version": "1.0", "response": {}}
         if request_type == "LaunchRequest":
-            return _speech(
-                "Receipts is listening. What should I hold onto?",
-                end_session=False,
-                reprompt="Tell me a promise or task to remember.",
-            )
+            return _launch(event)
         if request_type == "SessionEndedRequest":
             return {"version": "1.0", "response": {}}
         if request_type != "IntentRequest":
@@ -385,6 +458,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         intent = request.get("intent", {})
         name = intent.get("name")
+        if name == "AMAZON.RepeatIntent":
+            return _repeat(event)
         if name == "CaptureCommitmentIntent":
             return _capture(event, intent)
         if name == "LinkAlexaIntent":
@@ -398,14 +473,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if name == "ClarifyCommitmentIntent":
             return _clarify(event, intent)
         if name == "AMAZON.HelpIntent":
-            return _speech(
-                _first_turn(
-                    event,
-                    "Try saying, link code 4 8 2 7 3 1, review my receipts, or, I promised to call Mom tomorrow at noon.",
-                ),
-                end_session=False,
-                reprompt="What should I remember?",
-            )
+            return _help(event)
         if name in {"AMAZON.CancelIntent", "AMAZON.StopIntent"}:
             return _speech("Okay. Your promises will wait here.")
         return _speech(
@@ -415,4 +483,4 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         )
     except Exception:
         LOGGER.exception("Alexa request failed")
-        return _speech("Receipts hit a snag. Please try again in a moment.")
+        return _speech("I hit a snag while reaching Receipts. Please try again in a moment.")
