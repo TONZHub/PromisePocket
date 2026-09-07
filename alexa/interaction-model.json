@@ -54,6 +54,20 @@
           ]
         },
         {
+          "name": "UnlinkAlexaIntent",
+          "slots": [],
+          "samples": [
+            "unlink my receipts",
+            "disconnect my receipts",
+            "unlink this Alexa",
+            "disconnect this Alexa",
+            "forget this device",
+            "remove this Alexa",
+            "unlink me",
+            "disconnect me"
+          ]
+        },
+        {
           "name": "ClarifyCommitmentIntent",
           "slots": [
             {"name": "answer", "type": "AMAZON.TIME"}
