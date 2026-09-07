@@ -41,6 +41,8 @@ class PairingStore(Protocol):
 
     def resolve(self, source_actor_id: str) -> str: ...
 
+    def unlink(self, source_actor_id: str) -> bool: ...
+
 
 def _utc_now(now: datetime | None) -> datetime:
     value = now or datetime.now(timezone.utc)
@@ -110,6 +112,10 @@ class InMemoryPairingStore:
     def resolve(self, source_actor_id: str) -> str:
         source = _validate_actor_id(source_actor_id, field="source_actor_id")
         return self._links.get(source, source)
+
+    def unlink(self, source_actor_id: str) -> bool:
+        source = _validate_actor_id(source_actor_id, field="source_actor_id")
+        return self._links.pop(source, None) is not None
 
 
 class DynamoDbPairingStore:
@@ -232,6 +238,15 @@ class DynamoDbPairingStore:
             return source
         target = item.get("target_actor_id")
         return target if isinstance(target, str) and target else source
+
+    def unlink(self, source_actor_id: str) -> bool:
+        source = _validate_actor_id(source_actor_id, field="source_actor_id")
+        response = self._table.delete_item(
+            Key=self._actor_key(source),
+            ReturnValues="ALL_OLD",
+        )
+        item = response.get("Attributes")
+        return isinstance(item, dict) and item.get("pairing_kind") == "alexa_link"
 
 
 def build_pairing_store(settings: Settings) -> PairingStore:
