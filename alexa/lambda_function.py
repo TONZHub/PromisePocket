@@ -179,7 +179,7 @@ def _help(event: dict[str, Any]):
     return _speech(
         _first_turn(
             event,
-            "Try saying, review my receipts, or, I promised to call Mom tomorrow at noon. You can also say, repeat that.",
+            "Try saying, review my receipts, or, I promised to call Mom tomorrow at noon. You can also say, repeat that, or, unlink my receipts.",
         ),
         end_session=False,
         reprompt="What should I remember?",
@@ -272,6 +272,18 @@ def _pair(event: dict[str, Any], intent: dict[str, Any]):
     return _speech(
         _first_turn(event, "That code is invalid or expired. Make a new linking code and try again.")
     )
+
+
+def _unlink(event: dict[str, Any]):
+    result = _invoke(event, {"operation": "pair_unlink"})
+    if result.get("unlinked") is True:
+        return _speech(
+            _first_turn(
+                event,
+                "Disconnected. This Alexa will no longer use your linked Receipts account.",
+            )
+        )
+    return _speech(_first_turn(event, "This Alexa isn't linked right now."))
 
 
 def _review(event: dict[str, Any]):
@@ -464,6 +476,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             return _capture(event, intent)
         if name == "LinkAlexaIntent":
             return _pair(event, intent)
+        if name == "UnlinkAlexaIntent":
+            return _unlink(event)
         if name in {"ReviewPromisePocketIntent", "ReviewReceiptsIntent"}:
             return _review(event)
         if name in {"AMAZON.YesIntent", "CompleteReviewedPromiseIntent"}:
