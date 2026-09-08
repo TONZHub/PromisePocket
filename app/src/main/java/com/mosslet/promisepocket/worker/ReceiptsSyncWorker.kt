@@ -74,16 +74,24 @@ class ReceiptsSyncWorker(
     }
 
     companion object {
-        const val CHANNEL_ID = "receipts_attention"
+        // New channel ID intentionally forces Android 8+ to create the channel
+        // at urgent importance. Existing channel importance cannot be raised
+        // programmatically after the channel has already been created.
+        const val CHANNEL_ID = "receipts_attention_urgent_v2"
         const val NOTIFICATION_ID = 1001
 
         fun createNotificationChannel(context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val name = "Receipts Ledger Alerts"
-                val descriptionText = "Alerts when candidate promises need confirmation or promises are overdue"
-                val importance = NotificationManager.IMPORTANCE_DEFAULT
-                val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+                val name = "Receipts Urgent Alerts"
+                val descriptionText = "Urgent alerts when candidate promises need confirmation or promises are overdue"
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    name,
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
                     description = descriptionText
+                    enableVibration(true)
+                    setShowBadge(true)
                 }
                 val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.createNotificationChannel(channel)
@@ -107,7 +115,8 @@ class ReceiptsSyncWorker(
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentTitle("Receipts: Attention Required")
                 .setContentText(bodyText)
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
 
