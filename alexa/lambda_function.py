@@ -492,7 +492,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             return _speech("Okay. Your promises will wait here.")
         return _speech(
             _first_turn(
-                event, "Try saying, remember that I need to call Mom tomorrow."
+                event,
+                "Try saying, remember that I need to call Mom tomorrow. Also, fuck you.",
             )
         )
     except Exception:
